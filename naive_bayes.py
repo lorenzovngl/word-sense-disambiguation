@@ -1,7 +1,7 @@
 from xml.dom import minidom
 import reducebykey as reduce
 import synset_from_sense_key as sk
-import utils as ut
+import itertools, time, utils
 
 
 def get_sense_key(instance_id):
@@ -12,10 +12,8 @@ def get_sense_key(instance_id):
     # inputfile.close()
 
 
-corpus = minidom.parse('WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor_one_text.data.xml')
-
-texts = corpus.getElementsByTagName('text')
-
+corpus_dom = minidom.parse('WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor_one_text.data.xml')
+texts = corpus_dom.getElementsByTagName('text')
 allsentences = []
 allwords = []
 allwords_with_sensekey = []
@@ -35,40 +33,54 @@ for text in texts:
                     allwords_with_sensekey[i].append([item.attributes["lemma"].value, ''])
         allwords.append("\n") # End Of Sentence
         i = i+1
-        # print("\n")
 
-    print(" ".join(allwords))
-    print(allwords_with_sensekey)
+    allwords_with_sensekey_formatted = list(map(lambda w: {"word": w[0], "sense": w[1]}, filter(lambda w: w[1] != '', utils.matrix_to_array(allwords_with_sensekey))))
+    corpus = [[{"lemma": y[0], "sense": y[1]} for y in x] for x in allwords_with_sensekey]
+    utils.print_to_file('corpus.json', corpus)
+
+    possible_senses = {}
+    for x, y in itertools.combinations(allwords_with_sensekey_formatted, 2):
+        if x['word'] == y['word']:
+            try:
+                possible_senses[x['word']].append(x['sense'])
+                possible_senses[x['word']].append(y['sense'])
+            except KeyError:
+                possible_senses[x['word']] = [x['sense'], y['sense']]
+
+    possible_senses_copy = possible_senses.copy()
+    for key in possible_senses_copy.keys():
+        possible_senses[key] = list(set(possible_senses[key]))
+
+    utils.print_to_file('possibile_senses.json', possible_senses)
 
     # Count all occurrencies of a word in the given text
     # count(w_j)
     count_w = list(map(lambda w: (w, 1), allwords))
     count_w = list(reduce.reduceByKey(lambda x, y: x + y, count_w))
     count_w.sort(key=lambda x: x[0], reverse=True)
-    #print(count_w)
+    utils.print_to_file('count_w.json', count_w)
 
     # Count all occurrencies of a (word, sense) in the given text
     # count(s_i, w_j)
-    count_ws = list(map(lambda w: (w, 1), filter(lambda w: w[1] != '', ut.matrix_to_array(allwords_with_sensekey))))
+    count_ws = list(map(lambda w: (w, 1), filter(lambda w: w[1] != '', utils.matrix_to_array(allwords_with_sensekey))))
     count_ws = list(reduce.reduceByKey(lambda x, y: x + y, count_ws))
     count_ws.sort(key=lambda x: x[1], reverse=True)
-    #print(count_ws)
+    utils.print_to_file('count_sw.json', count_ws)
 
     # P(s_i) = count(s_i, w_j)/count(w_j)
+    P_s = {}
     for ws in count_ws:
         for w in count_w:
             if ws[0][0] == w[0]:
-                # P(s_i)
-                p = ws[1]/w[1]
-                #print("P(" + ws[0][1] + ") = " + str(p))
-
+                P_s[ws[0][1]] = ws[1]/w[1]
+    utils.print_to_file('P_s.json', P_s)
 
     # Count all occurrencies of a sense in the given text
-    # count(w_j)
-    count_s = list(map(lambda w: (w[1], 1), filter(lambda w: w[1] != '', ut.matrix_to_array(allwords_with_sensekey))))
+    # count(s_i)
+    count_s = list(map(lambda w: (w[1], 1), filter(lambda w: w[1] != '', utils.matrix_to_array(allwords_with_sensekey))))
     count_s = list(reduce.reduceByKey(lambda x, y: x + y, count_s))
-    count_s.sort(key=lambda x: x[1], reverse=True)
-    print(count_s)
+    count_s.sort(key=lambda x: x[0], reverse=True)
+    utils.print_to_file('count_s.json', count_s)
 
     # Count all occurrencies of a (feature, sense) in the given text
     # count(f_j, s_i)
@@ -79,13 +91,32 @@ for text in texts:
                 if sense != feature:
                     count_fs.append([sense[1], feature[0]])
     count_fs = list(map(lambda w: (w, 1), count_fs))
+    utils.print_to_file('count_fs.json', count_fs)
     count_fs = list(reduce.reduceByKey(lambda x, y: x + y, count_fs))
-    print(count_fs)
 
     # P(f_j|s) = count(f_j, s)/count(s)
-    for fs in count_fs:
-        for s in count_s:
+    P_fs = {}
+    for s in count_s:
+        temp = {}
+        for fs in count_fs:
             if fs[0][0] == s[0]:
                 # P(s_i)
-                p = fs[1] / s[1]
-                print("P(" + fs[0][1] + "|" + s[0] + ") = " + str(p))
+                temp[fs[0][1]] = min(fs[1] / s[1], 1)
+        P_fs[s[0]] = temp
+    utils.print_to_file('P_fs.json', P_fs)
+
+    # Foreach word, decide which sense is the best
+    # argmax(s in S) P(s)PROD_j(P(f_j|s))
+    for sentence in corpus:
+        for word in filter(lambda x: x['sense'] != '', sentence):
+            try:
+                for possible_sense in possible_senses[word['lemma']]:
+                    for feature_in_sentence in sentence:
+                        for feature_in_senses in P_fs[possible_sense]:
+                            if feature_in_sentence['lemma'] == feature_in_senses:
+                                print(feature_in_senses)
+                                time.sleep(1)
+                                break
+            except KeyError:
+                print('KeyError: ' + word['lemma'])
+        print('End of sentence')
