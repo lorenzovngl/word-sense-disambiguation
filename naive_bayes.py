@@ -109,14 +109,27 @@ for text in texts:
     # argmax(s in S) P(s)PROD_j(P(f_j|s))
     for sentence in corpus:
         for word in filter(lambda x: x['sense'] != '', sentence):
+            #print("Word", word['lemma'])
+            argmax_sense = "Unavailable"
+            argmax_value = 0
             try:
                 for possible_sense in possible_senses[word['lemma']]:
+                    #print("Possible sense", possible_sense)
+                    product = 0
                     for feature_in_sentence in sentence:
                         for feature_in_senses in P_fs[possible_sense]:
                             if feature_in_sentence['lemma'] == feature_in_senses:
-                                print(feature_in_senses)
-                                time.sleep(1)
+                                if product == 0:
+                                    product = 1
+                                #print(feature_in_senses, P_fs[possible_sense][feature_in_senses])
+                                product = product * P_fs[possible_sense][feature_in_senses]
                                 break
+                    #print("P(s)PROD_j(P(f_j|s))", P_s[possible_sense]*product)
+                    if argmax_value < P_s[possible_sense]*product:
+                        argmax_value = P_s[possible_sense]*product
+                        argmax_sense = possible_sense
             except KeyError:
                 print('KeyError: ' + word['lemma'])
+            print(word['lemma'], argmax_sense)
+            time.sleep(2)
         print('End of sentence')
