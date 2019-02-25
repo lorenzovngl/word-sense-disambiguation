@@ -39,13 +39,11 @@ for text in texts:
     utils.print_to_file('corpus.json', corpus)
 
     possible_senses = {}
-    for x, y in itertools.combinations(allwords_with_sensekey_formatted, 2):
-        if x['word'] == y['word']:
-            try:
-                possible_senses[x['word']].append(x['sense'])
-                possible_senses[x['word']].append(y['sense'])
-            except KeyError:
-                possible_senses[x['word']] = [x['sense'], y['sense']]
+    for x in allwords_with_sensekey_formatted:
+        try:
+            possible_senses[x['word']].append(x['sense'])
+        except KeyError:
+            possible_senses[x['word']] = [x['sense']]
 
     possible_senses_copy = possible_senses.copy()
     for key in possible_senses_copy.keys():
@@ -109,22 +107,27 @@ for text in texts:
     # argmax(s in S) P(s)PROD_j(P(f_j|s))
     for sentence in corpus:
         for word in filter(lambda x: x['sense'] != '', sentence):
-            #print("Word", word['lemma'])
+            # print("Word", word['lemma'])
             argmax_sense = "Unavailable"
             argmax_value = 0
             try:
                 for possible_sense in possible_senses[word['lemma']]:
-                    #print("Possible sense", possible_sense)
-                    product = 0
-                    for feature_in_sentence in sentence:
+                    # print("- Possible sense", possible_sense)
+                    product = 1
+                    for feature_in_sentence in filter(lambda w: w['sense'] != '' and w['lemma'] != word['lemma'], sentence):
+                        # print("--", feature_in_sentence['lemma'])
+                        found = False
                         for feature_in_senses in P_fs[possible_sense]:
                             if feature_in_sentence['lemma'] == feature_in_senses:
-                                if product == 0:
-                                    product = 1
-                                #print(feature_in_senses, P_fs[possible_sense][feature_in_senses])
+                                found = True
+                                # print("---", feature_in_senses, P_fs[possible_sense][feature_in_senses])
                                 product = product * P_fs[possible_sense][feature_in_senses]
                                 break
-                    #print("P(s)PROD_j(P(f_j|s))", P_s[possible_sense]*product)
+                        if not found:
+                            product = 0
+                            # print("---", feature_in_sentence['lemma'], product)
+                    # print("- P(s)", P_s[possible_sense])
+                    # print("- PROD_j(P(f_j|s))", product)
                     if argmax_value < P_s[possible_sense]*product:
                         argmax_value = P_s[possible_sense]*product
                         argmax_sense = possible_sense
