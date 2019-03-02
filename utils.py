@@ -16,6 +16,13 @@ def print_to_file(filename, data):
     f1.close()
 
 
+def read_from_file(filename):
+    f1 = open('dumps/' + filename, 'r+')
+    data = json.load(f1)
+    f1.close()
+    return data
+
+
 def iff(a, b, c):
     if a:
         return b
