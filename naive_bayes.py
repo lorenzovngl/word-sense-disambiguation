@@ -1,7 +1,5 @@
-from xml.dom import minidom
 import reducebykey as reduce
-import synset_from_sense_key as sk
-import itertools, time, utils
+import utils
 
 answers = 0
 correct_answers = 0
