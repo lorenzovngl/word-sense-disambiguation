@@ -10,7 +10,7 @@ def get_sense_key(instance_id):
     # inputfile.close()
 
 
-texts_to_parse = 10
+texts_to_parse = 1
 
 corpus_dom = minidom.parse('WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml')
 texts = corpus_dom.getElementsByTagName('text')
@@ -25,7 +25,7 @@ possible_senses = {}
 print("Parsing corpus...")
 utils.print_progress_bar(0, len(texts), prefix='Progress:', suffix='Complete', length=50)
 i = 0
-for text in texts[:10]:
+for text in texts:
     sentences = text.getElementsByTagName('sentence')
     j = 0
     for sentence in sentences:
