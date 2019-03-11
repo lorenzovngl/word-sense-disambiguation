@@ -1,6 +1,8 @@
 import random
 import reducebykey as reduce
 import utils
+import functools as ft
+from math import log
 
 answers = 0
 correct_answers = 0
@@ -67,8 +69,10 @@ for ws in count_ws:
 utils.print_to_file('P_s.json', P_s)
 
 # P(c_i|s_k) = PROD_{f_j in c_i) (P(f_j|s_k))
+P_cs = []
 for text in corpus:
-    for sentence in text:
+    for i, sentence in enumerate(text):
+        temp = {}
         for word in filter(lambda w: w['sense'] != '', sentence):
             try:
                 for possible_sense in possible_senses[word['lemma']]:
@@ -85,6 +89,49 @@ for text in corpus:
                                 break
                         if not found:
                             product = 0
-                    print("- PROD_j(P(f_j|s))", product)
+                    # print("P(c_" + str(i), "|", possible_sense, ") =", product)
+                    temp[possible_sense] = product
             except KeyError:
                 print('KeyError: ' + word['lemma'])
+        P_cs.append(temp)
+utils.print_to_file('P_cs.json', P_cs)
+
+# P(c_i) = SUM P(c_i|s_k)P(s_k)
+P_c = []
+for context in P_cs:
+    sum = 0
+    for sense in context:
+        sum += context[sense] * P_s[sense]
+    P_c.append(sum)
+utils.print_to_file('P_c.json', P_c)
+
+# l(C) -> Likelihood of the corpus
+sum_contexts = ft.reduce(lambda x, y: x*y, P_c)
+likelihood = log(sum_contexts)
+print(likelihood)
+
+# E-step
+# h_ik = P(c_i|s_k)/SUM(P(c_i|s_k)
+h_ik = []
+for i, context in enumerate(P_cs):
+    temp = {}
+    for sense in context:
+        temp[sense] = P_cs[i][sense]/P_c[i]
+    h_ik.append(temp)
+utils.print_to_file('h_ik.json', h_ik)
+
+# M-step
+for sense in P_fs:
+    sum = 0
+    for feature in P_fs[sense]:
+        for text in corpus:
+            for i, sentence in enumerate(text):
+                try:
+                    if feature in [x['lemma'] for x in sentence]:
+                        sum += h_ik[i][sense]
+                except KeyError:
+                    # TODO: Too much keyerrors, probably there is a bug
+                    pass
+                    # print('KeyError:', feature)
+    print(sum)
+
